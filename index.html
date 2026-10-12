@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IT Courses — Aktobe Hub 2026</title>
+  <title>Бесплатные IT-курсы — Aktobe Hub 2026</title>
 
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-T4QCCV5D0Z"></script>
@@ -11,13 +11,70 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-T4QCCV5D0Z');
   </script>
 </head>
 <body>
-  <h1>IT Courses — Aktobe Hub 2026</h1>
-  <p>Страница для отслеживания переходов на бесплатные IT-курсы.</p>
-  <p>Настройка аналитики выполняется.</p>
+  <h1>Бесплатные IT-курсы — Aktobe Hub 2026</h1>
+  <p id="message">Переход к выбранному курсу...</p>
+
+  <script>
+    const courses = {
+      prompt_engineering: {
+        name: 'Prompt Engineering',
+        url: 'https://edu.astanahub.com/courses/74b6914d-7e3b-4f52-b0ae-8f989e2294a7'
+      },
+      no_code_low_code: {
+        name: 'No Code / Low Code',
+        url: 'https://edu.astanahub.com/courses/8d83f744-1846-43ea-bc2a-1b8a37084a2e'
+      },
+      startup_school: {
+        name: 'Startup School',
+        url: 'https://edu.astanahub.com/courses/f2159fbf-0ecf-43cb-9376-b7efc6fc7df5'
+      },
+      startup_academy: {
+        name: 'Startup Academy',
+        url: 'https://edu.astanahub.com/courses/cc946059-304e-450a-895b-e671db651cba'
+      },
+      beta_career: {
+        name: 'Beta Career',
+        url: 'https://edu.astanahub.com/courses/c9d1629b-f2c2-40b8-9097-c92623ced30d'
+      },
+      freelance_school: {
+        name: 'Freelance School',
+        url: 'https://edu.astanahub.com/courses/3dcbfff1-1a89-4c9b-a2c3-c58c0425ac6d'
+      }
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const courseId = params.get('to');
+    const source = params.get('from') || 'unknown';
+    const course = courses[courseId];
+
+    if (course) {
+      document.getElementById('message').textContent =
+        'Открываем курс: ' + course.name;
+
+      let redirected = false;
+
+      function goToCourse() {
+        if (redirected) return;
+        redirected = true;
+        window.location.replace(course.url);
+      }
+
+      gtag('event', 'course_click', {
+        course_name: course.name,
+        source_channel: source,
+        event_callback: goToCourse,
+        event_timeout: 1200
+      });
+
+      setTimeout(goToCourse, 1800);
+    } else {
+      document.getElementById('message').textContent =
+        'Здесь размещены ссылки для перехода к бесплатным IT-курсам.';
+    }
+  </script>
 </body>
 </html>
