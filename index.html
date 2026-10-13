@@ -18,7 +18,7 @@
 
     // Полная карта реальных ссылок из твоего Dub.co
     const routeMap = {
-      // Курсы платформы Astana Hub (по их точным ссылкам)
+      // Курсы платформы Astana Hub
       fs: "https://edu.astanahub.com/courses/3dcbfff1-1a89-4c9b-a2c3-c58c0425ac6d",
       bc: "https://edu.astanahub.com/courses/c9d1629b-f2c2-40b8-9097-c92623ced30d",
       sa: "https://edu.astanahub.com/courses/cc946059-304e-450a-895b-e671db651cba",
@@ -37,8 +37,8 @@
       const utmMedium = urlParams.get('utm_medium') || 'qr_code';
       const utmCampaign = urlParams.get('utm_campaign') || 'none';
 
-      // 1. По умолчанию открываем PDF-каталог на Google Диске
-      let destinationUrl = "https://drive.google.com/file/d/1MFNJxYyPoH1EVEO3cQIbQ0bdLT8ZImZU/view?usp=sharing";
+      // 1. По умолчанию открываем твой рабочий PDF-каталог на Google Диске
+      let destinationUrl = "https://drive.google.com/file/d/1MFNJxYyPoH1EVEo3cQIbQ0bdLT8ZImZU/view?usp=sharing";
       let eventName = "qr_catalog_scan";
       let eventPayload = {
         scan_source: utmSource,
@@ -47,7 +47,7 @@
         transport_type: 'beacon'
       };
 
-      // 2. Если кликнули по курсу или Decentrathon
+      // 2. Если кликнули по конкретному курсу или Decentrathon
       if (target && routeMap[target]) {
         destinationUrl = routeMap[target];
         eventName = (target === 'dec') ? "decentrathon_click" : "course_selected";
