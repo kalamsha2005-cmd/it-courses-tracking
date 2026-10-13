@@ -3,81 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Переход к IT-курсу</title>
+  <title>Перенаправление...</title>
 
+  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-T4QCCV5D0Z"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
+
+    // Инициализация Google Analytics 4
     gtag('config', 'G-T4QCCV5D0Z');
-  </script>
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #fff;
-    }
-  </style>
-</head>
-<body>
-  <script>
-    const courses = {
-      prompt_engineering: {
-        name: 'Prompt Engineering',
-        url: 'https://edu.astanahub.com/courses/74b6914d-7e3b-4f52-b0ae-8f989e2294a7'
-      },
-      no_code_low_code: {
-        name: 'No Code / Low Code',
-        url: 'https://edu.astanahub.com/courses/8d83f744-1846-43ea-bc2a-1b8a37084a2e'
-      },
-      startup_school: {
-        name: 'Startup School',
-        url: 'https://edu.astanahub.com/courses/f2159fbf-0ecf-43cb-9376-b7efc6fc7df5'
-      },
-      startup_academy: {
-        name: 'Startup Academy',
-        url: 'https://edu.astanahub.com/courses/cc946059-304e-450a-895b-e671db651cba'
-      },
-      beta_career: {
-        name: 'Beta Career',
-        url: 'https://edu.astanahub.com/courses/c9d1629b-f2c2-40b8-9097-c92623ced30d'
-      },
-      freelance_school: {
-        name: 'Freelance School',
-        url: 'https://edu.astanahub.com/courses/3dcbfff1-1a89-4c9b-a2c3-c58c0425ac6d'
-      }
-    };
+    function redirect() {
+      // Базовая ссылка на файл каталога курсов на Google Диске
+      const targetBase = "https://drive.google.com/file/d/1MFNJxYyPoH1EVEO3cQIbQ0bdLT8ZImZU/view?usp=sharing";
+      
+      // Забираем UTM-метки, переданные через Dub.co
+      const search = window.location.search;
+      const finalUrl = search 
+        ? (targetBase + (targetBase.includes('?') ? '&' : '?') + search.substring(1)) 
+        : targetBase;
 
-    const params = new URLSearchParams(location.search);
-    const courseId = params.get('to');
-    const source = params.get('from') || 'unknown';
-    const course = courses[courseId];
-
-    if (course) {
-      let redirected = false;
-
-      function goToCourse() {
-        if (redirected) return;
-        redirected = true;
-        location.replace(course.url);
-      }
-
-      // Отправляем событие с названием конкретного курса.
-      gtag('event', 'course_click', {
-        course_id: courseId,
-        course_name: course.name,
-        source_channel: source,
-        event_callback: goToCourse,
-        event_timeout: 800
+      // Фиксируем событие перехода в GA4
+      gtag('event', 'qr_visit', {
+        transport_type: 'beacon',
+        event_callback: function() { 
+          window.location.replace(finalUrl); 
+        }
       });
 
-      // Не задерживаем переход надолго, если Analytics не ответит.
-      setTimeout(goToCourse, 1000);
-    } else {
-      document.body.textContent = 'Ссылка на курс не найдена.';
+      // Страховочный таймер: перенаправляет через 500 мс, если аналитика ответила с задержкой
+      setTimeout(function() {
+        window.location.replace(finalUrl);
+      }, 500);
     }
+
+    window.addEventListener('DOMContentLoaded', redirect);
+  </script>
+</head>
+<body style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 90vh; margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #444;">
+  <p style="font-size: 16px; margin-bottom: 8px;">Перенаправление в каталог Astana Hub...</p>
+  <p style="font-size: 13px; color: #888;">Если страница не открылась автоматически, <a id="fallback-link" href="#" style="color: #0066cc;">нажмите здесь</a>.</p>
+
+  <script>
+    // Запасная прямая ссылка на случай отключенного JS в браузере
+    document.getElementById('fallback-link').href = "https://drive.google.com/file/d/1MFNJxYyPoH1EVEO3cQIbQ0bdLT8ZImZU/view?usp=sharing" + window.location.search;
   </script>
 </body>
 </html>
