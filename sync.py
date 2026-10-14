@@ -1,7 +1,6 @@
 import os
 import requests
 import json
-import urllib.parse
 import idna
 
 DUB_API_KEY = "dub_YcT0ptmsLS3CJgZeL6ZL1iKN"
@@ -14,33 +13,33 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 основных курсов
-COURSES_MAP = {
-    "hub-pe": ("course_prompt_engineering", "Prompt Engineering"),
-    "hub-nlc": ("course_nocode_lowcode", "No-code / Low-code"),
-    "hub-ss": ("course_startup_school", "Startup School"),
-    "hub-sa": ("course_startup_academy", "Startup Academy"),
-    "hub-bc": ("course_beta_career", "Beta Career"),
-    "hub-fs": ("course_freelance_school", "Freelance School")
+# 6 курсов: красивое понятное название для каждого
+COURSES_TITLES = {
+    "hub-pe": "Prompt Engineering",
+    "hub-nlc": "No-code / Low-code",
+    "hub-ss": "Startup School",
+    "hub-sa": "Startup Academy",
+    "hub-bc": "Beta Career",
+    "hub-fs": "Freelance School"
 }
 
 def decode_puny(text):
     try:
         parts = text.split("_")
-        decoded_parts = []
+        decoded = []
         for p in parts:
             if p.startswith("xn--"):
                 try:
-                    decoded_parts.append(idna.decode(p))
+                    decoded.append(idna.decode(p))
                 except Exception:
-                    decoded_parts.append(p)
+                    decoded.append(p)
             else:
-                decoded_parts.append(p)
-        return "_".join(decoded_parts).lower()
+                decoded.append(p)
+        return "_".join(decoded).lower()
     except Exception:
         return text.lower()
 
-# Загружаем сохранённое состояние предыдущих кликов
+# Читаем предыдущее состояние кликов
 last_state = {}
 if os.path.exists(STATE_FILE):
     try:
@@ -50,7 +49,7 @@ if os.path.exists(STATE_FILE):
         last_state = {}
 
 try:
-    print("Запрос актуальных данных из Dub.co...")
+    print("Получение данных из Dub.co...")
     res = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
     if res.status_code != 200:
         print(f"Ошибка Dub.co: {res.status_code}")
@@ -70,35 +69,45 @@ try:
 
         current_state[raw_key] = clicks
 
-        # Точное определение событий
-        if "decentrathon" in target_url or "децентр" in decoded_key or "decentrathon" in decoded_key:
+        # -----------------------------
+        # 1. ПАПКА: 6 курсов Astana Hub
+        # -----------------------------
+        if raw_key in COURSES_TITLES:
+            event_name = "astanahub_courses"
+            item_name = COURSES_TITLES[raw_key]
+
+        # -----------------------------
+        # 2. ПАПКА: Decentrathon 6.0
+        # -----------------------------
+        elif "decentrathon" in target_url or "децентр" in decoded_key or "vj" in raw_key.lower():
             if "экран" in decoded_key or "vj" in raw_key.lower():
                 event_name = "decentrathon_screens"
-                label = "Decentrathon (Экраны хаба)"
+                item_name = "Decentrathon (Экраны хаба)"
             else:
                 event_name = "decentrathon_presentation"
-                label = "Decentrathon (Презентация)"
+                item_name = "Decentrathon (Презентация)"
 
-        elif "drive.google.com" in target_url or "пдф" in decoded_key or "курсы" in decoded_key or "ise" in raw_key.lower():
+        # -----------------------------
+        # 3. ПАПКА: PDF-каталог
+        # -----------------------------
+        elif "drive.google.com" in target_url or "пдф" in decoded_key or "ise" in raw_key.lower():
             if "экран" in decoded_key or "ise" in raw_key.lower():
                 event_name = "catalog_screens"
-                label = "Каталог PDF (Экраны хаба)"
+                item_name = "Каталог PDF (Экраны хаба)"
             else:
                 event_name = "catalog_presentation"
-                label = "Каталог PDF (Презентация)"
+                item_name = "Каталог PDF (Презентация)"
 
-        elif raw_key in COURSES_MAP:
-            event_name, label = COURSES_MAP[raw_key]
+        # Резервный случай
         else:
-            clean_name = raw_key.replace("-", "_").lower()
-            event_name = f"course_{clean_name}"
-            label = raw_key
+            event_name = "other_clicks"
+            item_name = raw_key
 
-        # Считаем, сколько новых кликов появилось с прошлого раза
+        # -----------------------------
+        # Логика точного подсчёта кликов (Дельта)
+        # -----------------------------
         prev_clicks = last_state.get(raw_key, 0)
-        
         if is_first_run:
-            # При самом первом запуске синхронизируем ровно столько, сколько сейчас в Dub.co
             new_clicks = clicks
         else:
             new_clicks = max(0, clicks - prev_clicks)
@@ -109,7 +118,8 @@ try:
                 "events": [{
                     "name": event_name,
                     "params": {
-                        "item_name": label,
+                        "course_name": item_name,
+                        "item_name": item_name,
                         "destination_url": item.get("url", "")
                     }
                 }]
@@ -118,15 +128,15 @@ try:
             for _ in range(new_clicks):
                 requests.post(ga4_url, json=payload, timeout=5)
 
-            print(f"Отправлено в GA4: {event_name} -> +{new_clicks} новых кликов")
+            print(f"Отправлено: [{event_name}] {item_name} -> +{new_clicks} кликов")
         else:
-            print(f"Нет новых кликов для: {event_name} (всего: {clicks})")
+            print(f"Без новых кликов: [{event_name}] {item_name} (всего {clicks})")
 
-    # Сохраняем актуальное состояние кликов
+    # Сохраняем актуальные цифры кликов
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(current_state, f, ensure_ascii=False, indent=2)
 
-    print("Синхронизация завершена успешно!")
+    print("Синхронизация успешно завершена!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
