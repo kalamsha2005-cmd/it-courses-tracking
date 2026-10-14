@@ -11,14 +11,14 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# Четкие названия событий для курсов (как было раньше)
-COURSES_MAP = {
-    "hub-pe": "course_prompt_engineering",
-    "hub-nlc": "course_nocode_lowcode",
-    "hub-ss": "course_startup_school",
-    "hub-sa": "course_startup_academy",
-    "hub-bc": "course_beta_career",
-    "hub-fs": "course_freelance_school"
+# 6 курсов Astana Hub: привязка ключа к красивому названию
+COURSES_TITLES = {
+    "hub-pe": "Prompt Engineering",
+    "hub-nlc": "No-code / Low-code",
+    "hub-ss": "Startup School",
+    "hub-sa": "Startup Academy",
+    "hub-bc": "Beta Career",
+    "hub-fs": "Freelance School"
 }
 
 def decode_puny(text):
@@ -40,22 +40,24 @@ def decode_puny(text):
 session = requests.Session()
 ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
-def send_to_ga4(event_name, count, target_url):
+def send_to_ga4(event_name, item_name, count, target_url):
     for i in range(count):
         payload = {
-            "client_id": f"client_{abs(hash(event_name + str(i))) % 1000000}",
+            "client_id": f"client_{abs(hash(item_name + str(i))) % 1000000}",
             "events": [{
                 "name": event_name,
                 "params": {
+                    "course_name": item_name,
+                    "item_name": item_name,
                     "destination_url": target_url
                 }
             }]
         }
         session.post(ga4_url, json=payload, timeout=5)
-    print(f"-> Отправлено [{event_name}]: {count} соб.")
+    print(f"-> [{event_name}] {item_name} отправлено {count} раз")
 
 try:
-    print("Получаем данные из Dub.co...")
+    print("Получаем ссылки из Dub.co...")
     res = session.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
     if res.status_code != 200:
         print(f"Ошибка Dub.co: {res.status_code}")
@@ -68,33 +70,40 @@ try:
         decoded_key = decode_puny(raw_key)
         target_url = item.get("url", "").lower()
         clicks = item.get("clicks", 0)
+        # Отправляем фактические клики, но минимум 1, чтобы строка железно была видна в отчете
+        to_send = max(clicks, 1)
 
-        # 1. Курсы Astana Hub (каждый отдельной строкой)
-        if raw_key in COURSES_MAP:
-            event_name = COURSES_MAP[raw_key]
+        # 1. ЕДИНАЯ ПАПКА ДЛЯ 6 КУРСОВ
+        if raw_key in COURSES_TITLES:
+            event_name = "astanahub_courses"
+            item_name = COURSES_TITLES[raw_key]
+            send_to_ga4(event_name, item_name, to_send, item.get("url", ""))
 
-        # 2. Decentrathon 6.0
-        elif "decentrathon" in target_url or "децентр" in decoded_key or "vj" in raw_key.lower():
-            if "экран" in decoded_key or "vj" in raw_key.lower():
-                event_name = "decentrathon_screens"
-            else:
-                event_name = "decentrathon_presentation"
+        # 2. ДЕЦЕНТРАТОН: ЭКРАНЫ
+        elif "децентр" in decoded_key and "экран" in decoded_key or "vj" in raw_key.lower():
+            event_name = "decentrathon_screens"
+            item_name = "Decentrathon (Экраны хаба)"
+            send_to_ga4(event_name, item_name, to_send, item.get("url", ""))
 
-        # 3. ЛМС Каталог курсов (PDF)
-        elif "drive.google.com" in target_url or "пдф" in decoded_key or "ise" in raw_key.lower() or "лм" in decoded_key:
-            if "экран" in decoded_key or "ise" in raw_key.lower():
-                event_name = "catalog_screens"
-            else:
-                event_name = "catalog_presentation"
+        # 3. ДЕЦЕНТРАТОН: ПРЕЗЕНТАЦИЯ
+        elif "децентр" in decoded_key or "decentrathon" in target_url:
+            event_name = "decentrathon_presentation"
+            item_name = "Decentrathon (Презентация)"
+            send_to_ga4(event_name, item_name, to_send, item.get("url", ""))
 
-        else:
-            event_name = f"click_{raw_key}"
+        # 4. КАТАЛОГ PDF: ЭКРАНЫ
+        elif ("drive.google.com" in target_url or "пдф" in decoded_key or "ise" in raw_key.lower()) and ("экран" in decoded_key or "ise" in raw_key.lower()):
+            event_name = "catalog_screens"
+            item_name = "Каталог PDF (Экраны хаба)"
+            send_to_ga4(event_name, item_name, to_send, item.get("url", ""))
 
-        # Отправляем фактическое количество кликов (или минимум 1, чтобы строка сразу появилась)
-        count_to_send = max(clicks, 1)
-        send_to_ga4(event_name, count_to_send, item.get("url", ""))
+        # 5. КАТАЛОГ PDF: ПРЕЗЕНТАЦИЯ
+        elif "drive.google.com" in target_url or "пдф" in decoded_key or "презентаци" in decoded_key or "лм" in decoded_key:
+            event_name = "catalog_presentation"
+            item_name = "Каталог PDF (Презентация)"
+            send_to_ga4(event_name, item_name, to_send, item.get("url", ""))
 
-    print("Все 10 событий успешно отправлены в GA4!")
+    print("Все 5 категорий успешно структурированы и отправлены в GA4!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
