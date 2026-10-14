@@ -13,7 +13,7 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 курсов: красивое понятное название для каждого
+# 6 курсов Astana Hub
 COURSES_TITLES = {
     "hub-pe": "Prompt Engineering",
     "hub-nlc": "No-code / Low-code",
@@ -39,7 +39,7 @@ def decode_puny(text):
     except Exception:
         return text.lower()
 
-# Читаем предыдущее состояние кликов
+# Чтение предыдущего состояния кликов
 last_state = {}
 if os.path.exists(STATE_FILE):
     try:
@@ -48,9 +48,11 @@ if os.path.exists(STATE_FILE):
     except Exception:
         last_state = {}
 
+session = requests.Session()
+
 try:
     print("Получение данных из Dub.co...")
-    res = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
+    res = session.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
     if res.status_code != 200:
         print(f"Ошибка Dub.co: {res.status_code}")
         exit()
@@ -69,16 +71,12 @@ try:
 
         current_state[raw_key] = clicks
 
-        # -----------------------------
         # 1. ПАПКА: 6 курсов Astana Hub
-        # -----------------------------
         if raw_key in COURSES_TITLES:
             event_name = "astanahub_courses"
             item_name = COURSES_TITLES[raw_key]
 
-        # -----------------------------
         # 2. ПАПКА: Decentrathon 6.0
-        # -----------------------------
         elif "decentrathon" in target_url or "децентр" in decoded_key or "vj" in raw_key.lower():
             if "экран" in decoded_key or "vj" in raw_key.lower():
                 event_name = "decentrathon_screens"
@@ -87,9 +85,7 @@ try:
                 event_name = "decentrathon_presentation"
                 item_name = "Decentrathon (Презентация)"
 
-        # -----------------------------
         # 3. ПАПКА: PDF-каталог
-        # -----------------------------
         elif "drive.google.com" in target_url or "пдф" in decoded_key or "ise" in raw_key.lower():
             if "экран" in decoded_key or "ise" in raw_key.lower():
                 event_name = "catalog_screens"
@@ -103,16 +99,16 @@ try:
             event_name = "other_clicks"
             item_name = raw_key
 
-        # -----------------------------
-        # Логика точного подсчёта кликов (Дельта)
-        # -----------------------------
+        # Подсчет количества событий для отправки
         prev_clicks = last_state.get(raw_key, 0)
         if is_first_run:
-            new_clicks = clicks
+            # При первом запуске отправляем фактические клики, но минимум 1 для регистрации строки
+            events_to_send = max(clicks, 1)
         else:
-            new_clicks = max(0, clicks - prev_clicks)
+            # В последующих запусках шлем только чистую дельту новых кликов
+            events_to_send = max(0, clicks - prev_clicks)
 
-        if new_clicks > 0:
+        if events_to_send > 0:
             payload = {
                 "client_id": f"client_{abs(hash(raw_key)) % 1000000}",
                 "events": [{
@@ -125,14 +121,14 @@ try:
                 }]
             }
 
-            for _ in range(new_clicks):
-                requests.post(ga4_url, json=payload, timeout=5)
+            for _ in range(events_to_send):
+                session.post(ga4_url, json=payload, timeout=5)
 
-            print(f"Отправлено: [{event_name}] {item_name} -> +{new_clicks} кликов")
+            print(f"Отправлено: [{event_name}] {item_name} -> {events_to_send} соб.")
         else:
             print(f"Без новых кликов: [{event_name}] {item_name} (всего {clicks})")
 
-    # Сохраняем актуальные цифры кликов
+    # Сохраняем состояние
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(current_state, f, ensure_ascii=False, indent=2)
 
