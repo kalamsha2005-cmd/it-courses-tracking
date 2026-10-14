@@ -26,36 +26,42 @@ ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEAS
 
 def send_to_ga4(event_name, item_name, count, target_url):
     for i in range(count):
+        user_id = f"usr_{uuid.uuid4().hex[:12]}"
+        now_ts = int(time.time() * 1000000)
+        
         payload = {
-            "client_id": f"user_{uuid.uuid4().hex[:10]}",
+            "client_id": user_id,
+            "timestamp_micros": now_ts,
             "events": [{
                 "name": event_name,
                 "params": {
                     "course_name": item_name,
                     "item_name": item_name,
                     "destination_url": target_url,
+                    "session_id": str(int(time.time())),
                     "engagement_time_msec": 1000
                 }
             }]
         }
         session.post(ga4_url, json=payload, timeout=5)
-    print(f"[{event_name}] '{item_name}' -> отправлено: {count}")
+    print(f"-> [{event_name}] '{item_name}': успешно отправлено {count} кликов")
 
 try:
-    print("Получение данных из Dub.co...")
+    print("Получаем ссылки из Dub.co...")
     res = session.get("https://api.dub.co/links?limit=50", headers=headers_dub, timeout=10)
     if res.status_code != 200:
-        print(f"Ошибка Dub.co API: {res.status_code}")
+        print(f"Ошибка Dub.co: {res.status_code}")
         exit(1)
 
     links = res.json()
+    print(f"Получено ссылок: {len(links)}")
 
     for item in links:
         raw_key = item.get("key", "").strip()
         target_url = item.get("url", "").strip()
         clicks = max(item.get("clicks", 0), 1)
 
-        # 1. ШЕСТЬ КУРСОВ ASTANA HUB
+        # 1. ШЕСТЬ КУРСОВ -> в общую папку astanahub_courses
         if raw_key in COURSES_MAP:
             event_name = "astanahub_courses"
             item_name = COURSES_MAP[raw_key]
@@ -65,7 +71,7 @@ try:
             event_name = "catalog_screens"
             item_name = "Каталог PDF (Экраны хаба)"
 
-        # 3. КАТАЛОГ PDF: ПРЕЗЕНТАЦИЯ
+        # 3. КАТАЛОГ PDF: ДЛЯ ПРЕЗЕНТАЦИЙ
         elif "vjfi9b" in raw_key:
             event_name = "catalog_presentation"
             item_name = "Каталог PDF (Презентация)"
@@ -85,7 +91,7 @@ try:
 
         send_to_ga4(event_name, item_name, clicks, target_url)
 
-    print("\nСинхронизация завершена успешно!")
+    print("\nГотово! Все 5 категорий отправлены как активные сессии в GA4.")
 
 except Exception as e:
     print(f"Ошибка: {e}")
