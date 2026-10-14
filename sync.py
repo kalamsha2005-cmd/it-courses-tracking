@@ -1,7 +1,6 @@
 import os
 import requests
 import json
-import idna
 import uuid
 
 DUB_API_KEY = "dub_YcT0ptmsLS3CJgZeL6ZL1iKN"
@@ -12,24 +11,14 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# Функция для декодирования Punycode (русских букв) в обычный текст
-def decode_dub_key(text):
-    if not text:
-        return ""
-    try:
-        parts = text.split("_")
-        decoded_parts = []
-        for p in parts:
-            if p.startswith("xn--"):
-                try:
-                    decoded_parts.append(idna.decode(p))
-                except Exception:
-                    decoded_parts.append(p)
-            else:
-                decoded_parts.append(p)
-        return "_".join(decoded_parts).lower()
-    except Exception:
-        return text.lower()
+COURSES_MAP = {
+    "hub-pe": "Prompt Engineering",
+    "hub-nlc": "No-code / Low-code",
+    "hub-ss": "Startup School",
+    "hub-sa": "Startup Academy",
+    "hub-bc": "Beta Career",
+    "hub-fs": "Freelance School"
+}
 
 session = requests.Session()
 ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
@@ -74,70 +63,39 @@ try:
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        decoded_key = decode_dub_key(raw_key)
-        target_url = item.get("url", "").strip()
+        target_url = item.get("url", "").strip().lower()
         clicks = max(item.get("clicks", 0), 1)
 
-        # -------------------------------------------------------------
-        # 1) КАТАЛОГ PDF: ЭКРАНЫ
-        # -------------------------------------------------------------
-        if "лмс_курсы_кьар_на_пдф_экраны" in decoded_key or ("лмс" in decoded_key and "экран" in decoded_key):
+        # 1. ШЕСТЬ КУРСОВ ASTANA HUB
+        if raw_key in COURSES_MAP:
+            event_name = "astanahub_courses"
+            item_name = COURSES_MAP[raw_key]
+
+        # 2. КАТАЛОГ PDF: ЭКРАНЫ (хеш iseh4b...)
+        elif "iseh4b" in raw_key:
             event_name = "catalog_screens"
             item_name = "Каталог PDF (Экраны хаба)"
 
-        # -------------------------------------------------------------
-        # 2) КАТАЛОГ PDF: ДЛЯ ПРЕЗЕНТАЦИЙ
-        # -------------------------------------------------------------
-        elif "лмс_курсы_кьар_на_пдф_для_презентации" in decoded_key or ("лмс" in decoded_key and "презентаци" in decoded_key):
+        # 3. КАТАЛОГ PDF: ПРЕЗЕНТАЦИЯ (хеш vjfi9b...)
+        elif "vjfi9b" in raw_key:
             event_name = "catalog_presentation"
             item_name = "Каталог PDF (Презентация)"
 
-        # -------------------------------------------------------------
-        # 3) ДЕЦЕНТРАТОН 6.0: ЭКРАНЫ
-        # -------------------------------------------------------------
-        elif "децентра_6.0_кьар_на_рег_экраны" in decoded_key or ("децентр" in decoded_key and "экран" in decoded_key):
+        # 4. ДЕЦЕНТРАТОН: ЭКРАНЫ (хеш 5vebczt4...)
+        elif "5vebczt4" in raw_key:
             event_name = "decentrathon_screens"
             item_name = "Decentrathon (Экраны хаба)"
 
-        # -------------------------------------------------------------
-        # 4) ДЕЦЕНТРАТОН 6.0: ПРЕЗЕНТАЦИИ
-        # -------------------------------------------------------------
-        elif "децентра_6.0_кьар_на_рег_презентации" in decoded_key or ("децентр" in decoded_key and "презентаци" in decoded_key):
+        # 5. ДЕЦЕНТРАТОН: ПРЕЗЕНТАЦИЯ (хеш 5vebcztc...)
+        elif "5vebcztc" in raw_key:
             event_name = "decentrathon_presentation"
             item_name = "Decentrathon (Презентация)"
 
-        # -------------------------------------------------------------
-        # 5–10) 6 КУРСОВ ASTANA HUB -> СТРОГО В ПАПКУ astanahub_courses
-        # -------------------------------------------------------------
-        elif raw_key == "hub-pe":
-            event_name = "astanahub_courses"
-            item_name = "Prompt Engineering"
-
-        elif raw_key == "hub-nlc":
-            event_name = "astanahub_courses"
-            item_name = "No-code / Low-code"
-
-        elif raw_key == "hub-ss":
-            event_name = "astanahub_courses"
-            item_name = "Startup School"
-
-        elif raw_key == "hub-sa":
-            event_name = "astanahub_courses"
-            item_name = "Startup Academy"
-
-        elif raw_key == "hub-bc":
-            event_name = "astanahub_courses"
-            item_name = "Beta Career"
-
-        elif raw_key == "hub-fs":
-            event_name = "astanahub_courses"
-            item_name = "Freelance School"
-
         else:
-            print(f"Неизвестная ссылка: {raw_key} ({decoded_key})")
+            print(f"Неизвестная ссылка: {raw_key}")
             continue
 
-        send_to_ga4(event_name, item_name, clicks, target_url)
+        send_to_ga4(event_name, item_name, clicks, item.get("url", ""))
         summary[event_name] += clicks
 
     print("\nИТОГИ РАСПРЕДЕЛЕНИЯ ПО 5 ПАПКАМ:")
