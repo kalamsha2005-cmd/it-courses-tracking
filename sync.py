@@ -12,8 +12,8 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 курсов с их точными названиями
-COURSES_MAP = {
+# 6 курсов Astana Hub -> пойдут строго внутрь astanahub_courses
+COURSES = {
     "hub-pe": "Prompt Engineering",
     "hub-nlc": "No-code / Low-code",
     "hub-ss": "Startup School",
@@ -22,28 +22,26 @@ COURSES_MAP = {
     "hub-fs": "Freelance School"
 }
 
-def decode_key(raw_text):
+def decode_punycode(text):
     try:
-        parts = raw_text.split("_")
-        decoded = []
+        parts = text.split("_")
+        res = []
         for p in parts:
             if p.startswith("xn--"):
                 try:
-                    decoded.append(idna.decode(p))
+                    res.append(idna.decode(p))
                 except Exception:
-                    decoded.append(p)
+                    res.append(p)
             else:
-                decoded.append(p)
-        return "_".join(decoded).lower()
+                res.append(p)
+        return "_".join(res).lower()
     except Exception:
-        return raw_text.lower()
+        return text.lower()
 
 session = requests.Session()
 ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
-def send_events_batch(event_name, item_name, count, target_url):
-    # Отправляем события пачками до 25 штук за 1 сетевой запрос
-    # Это мгновенно передает все клики без задержек и дублей
+def send_batch(event_name, item_name, count, url=""):
     events = []
     for _ in range(count):
         events.append({
@@ -51,79 +49,75 @@ def send_events_batch(event_name, item_name, count, target_url):
             "params": {
                 "course_name": item_name,
                 "item_name": item_name,
-                "destination_url": target_url
+                "destination_url": url
             }
         })
         if len(events) == 25:
-            payload = {
-                "client_id": str(uuid.uuid4()),
-                "events": events
-            }
-            session.post(ga4_url, json=payload, timeout=5)
+            session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
             events = []
-
     if events:
-        payload = {
-            "client_id": str(uuid.uuid4()),
-            "events": events
-        }
-        session.post(ga4_url, json=payload, timeout=5)
-
-    print(f"Успешно доставлено: [{event_name}] '{item_name}' -> {count} кликов")
+        session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
+    print(f"[{event_name}] -> {item_name}: отправлено {count}")
 
 try:
-    print("Запрос всех ссылок из Dub.co...")
+    print("Получаем все ссылки из Dub.co...")
     res = session.get("https://api.dub.co/links?limit=50", headers=headers_dub, timeout=10)
     if res.status_code != 200:
-        print(f"Ошибка API Dub.co: {res.status_code}")
+        print(f"Ошибка Dub.co: {res.status_code}")
         exit(1)
 
     links = res.json()
-    print(f"Найдено ссылок в Dub.co: {len(links)}")
+    print(f"Всего ссылок получено: {len(links)}")
+
+    categories_count = {
+        "catalog_screens": 0,
+        "catalog_presentation": 0,
+        "decentrathon_screens": 0,
+        "decentrathon_presentation": 0,
+        "astanahub_courses": 0
+    }
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        decoded_name = decode_key(raw_key)
+        decoded_name = decode_punycode(raw_key)
         target_url = item.get("url", "").lower()
-        clicks = item.get("clicks", 0)
+        clicks = max(item.get("clicks", 0), 1)
 
-        # Передаем реальное число кликов (но не меньше 1, чтобы строчка появилась на экране)
-        send_count = max(clicks, 1)
-
-        # 1. ШЕСТЬ КУРСОВ ASTANA HUB -> строго в одну категорию astanahub_courses
-        if raw_key in COURSES_MAP:
+        # 1. ШЕСТЬ КУРСОВ (ЕДИНАЯ ПАПКА)
+        if raw_key in COURSES:
             event_name = "astanahub_courses"
-            item_name = COURSES_MAP[raw_key]
-            send_events_batch(event_name, item_name, send_count, item.get("url", ""))
+            item_name = COURSES[raw_key]
 
         # 2. ДЕЦЕНТРАТОН - ЭКРАНЫ
         elif "децентр" in decoded_name and "экран" in decoded_name:
             event_name = "decentrathon_screens"
             item_name = "Decentrathon (Экраны хаба)"
-            send_events_batch(event_name, item_name, send_count, item.get("url", ""))
 
         # 3. ДЕЦЕНТРАТОН - ПРЕЗЕНТАЦИЯ
-        elif "децентр" in decoded_name and "презентаци" in decoded_name:
+        elif "децентр" in decoded_name and ("презентаци" in decoded_name or "пер" in decoded_name):
             event_name = "decentrathon_presentation"
             item_name = "Decentrathon (Презентация)"
-            send_events_batch(event_name, item_name, send_count, item.get("url", ""))
 
         # 4. КАТАЛОГ PDF - ЭКРАНЫ
         elif ("лм" in decoded_name or "drive.google.com" in target_url) and "экран" in decoded_name:
             event_name = "catalog_screens"
             item_name = "Каталог PDF (Экраны хаба)"
-            send_events_batch(event_name, item_name, send_count, item.get("url", ""))
 
         # 5. КАТАЛОГ PDF - ПРЕЗЕНТАЦИЯ
-        elif ("лм" in decoded_name or "drive.google.com" in target_url) and "презентаци" in decoded_name:
+        elif ("лм" in decoded_name or "drive.google.com" in target_url) and ("презентаци" in decoded_name or "для" in decoded_name):
             event_name = "catalog_presentation"
             item_name = "Каталог PDF (Презентация)"
-            send_events_batch(event_name, item_name, send_count, item.get("url", ""))
 
         else:
-            print(f"Неопознанная ссылка: {raw_key} ({decoded_name})")
+            print(f"Пропуск нераспознанной: {raw_key} ({decoded_name})")
+            continue
 
-    print("\nИдеальная синхронизация завершена! Все 10 ссылок разложены по 5 папкам.")
+        send_batch(event_name, item_name, clicks, item.get("url", ""))
+        categories_count[event_name] += clicks
+
+    print("\nИтог синхронизации по категориям:")
+    for cat, total in categories_count.items():
+        print(f" - {cat}: {total} кликов")
 
 except Exception as e:
-    print(f"Ошибка выполнения: {e}")
+    print(f"Ошибка: {e}")
