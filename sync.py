@@ -8,6 +8,8 @@ DUB_API_KEY = "dub_YcT0ptmsLS3CJgZeL6ZL1iKN"
 GA4_MEASUREMENT_ID = "G-T4QCCV5D0Z"
 GA4_API_SECRET = "XBMxi-AOQHCvvq2RI8SHug"
 
+STATE_FILE = "state.json"
+
 headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
@@ -23,7 +25,6 @@ COURSES_MAP = {
 }
 
 def decode_puny(text):
-    """Декодирует punycode даже при наличии нижних подчеркиваний"""
     try:
         parts = text.split("_")
         decoded_parts = []
@@ -39,8 +40,17 @@ def decode_puny(text):
     except Exception:
         return text.lower()
 
+# Загружаем сохранённое состояние предыдущих кликов
+last_state = {}
+if os.path.exists(STATE_FILE):
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            last_state = json.load(f)
+    except Exception:
+        last_state = {}
+
 try:
-    print("Запрос ссылок из Dub.co...")
+    print("Запрос актуальных данных из Dub.co...")
     res = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
     if res.status_code != 200:
         print(f"Ошибка Dub.co: {res.status_code}")
@@ -49,33 +59,34 @@ try:
     links = res.json()
     ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
+    current_state = {}
+    is_first_run = len(last_state) == 0
+
     for item in links:
         raw_key = item.get("key", "").strip()
         decoded_key = decode_puny(raw_key)
         target_url = item.get("url", "").lower()
         clicks = item.get("clicks", 0)
 
-        # 1. Decentrathon
+        current_state[raw_key] = clicks
+
+        # Точное определение событий
         if "decentrathon" in target_url or "децентр" in decoded_key or "decentrathon" in decoded_key:
-            # Проверяем признаки экрана: слово "экран", либо часть punycode хэша
-            if "экран" in decoded_key or "screen" in decoded_key or "vj" in raw_key.lower():
+            if "экран" in decoded_key or "vj" in raw_key.lower():
                 event_name = "decentrathon_screens"
                 label = "Decentrathon (Экраны хаба)"
             else:
                 event_name = "decentrathon_presentation"
                 label = "Decentrathon (Презентация)"
 
-        # 2. Каталог PDF
-        elif "drive.google.com" in target_url or "пдф" in decoded_key or "курсы" in decoded_key:
-            # Проверяем признаки экрана: слово "экран", либо часть punycode хэша "ise"
-            if "экран" in decoded_key or "screen" in decoded_key or "ise" in raw_key.lower():
+        elif "drive.google.com" in target_url or "пдф" in decoded_key or "курсы" in decoded_key or "ise" in raw_key.lower():
+            if "экран" in decoded_key or "ise" in raw_key.lower():
                 event_name = "catalog_screens"
                 label = "Каталог PDF (Экраны хаба)"
             else:
                 event_name = "catalog_presentation"
                 label = "Каталог PDF (Презентация)"
 
-        # 3. 6 стандартных курсов
         elif raw_key in COURSES_MAP:
             event_name, label = COURSES_MAP[raw_key]
         else:
@@ -83,26 +94,39 @@ try:
             event_name = f"course_{clean_name}"
             label = raw_key
 
-        # Передаем точное количество кликов
-        events_to_send = max(clicks, 1)
+        # Считаем, сколько новых кликов появилось с прошлого раза
+        prev_clicks = last_state.get(raw_key, 0)
+        
+        if is_first_run:
+            # При самом первом запуске синхронизируем ровно столько, сколько сейчас в Dub.co
+            new_clicks = clicks
+        else:
+            new_clicks = max(0, clicks - prev_clicks)
 
-        payload = {
-            "client_id": f"client_{abs(hash(raw_key)) % 1000000}",
-            "events": [{
-                "name": event_name,
-                "params": {
-                    "item_name": label,
-                    "destination_url": item.get("url", "")
-                }
-            }]
-        }
+        if new_clicks > 0:
+            payload = {
+                "client_id": f"client_{abs(hash(raw_key)) % 1000000}",
+                "events": [{
+                    "name": event_name,
+                    "params": {
+                        "item_name": label,
+                        "destination_url": item.get("url", "")
+                    }
+                }]
+            }
 
-        for _ in range(events_to_send):
-            requests.post(ga4_url, json=payload, timeout=5)
+            for _ in range(new_clicks):
+                requests.post(ga4_url, json=payload, timeout=5)
 
-        print(f"Готово: {event_name} ({label}) -> {events_to_send} кликов")
+            print(f"Отправлено в GA4: {event_name} -> +{new_clicks} новых кликов")
+        else:
+            print(f"Нет новых кликов для: {event_name} (всего: {clicks})")
 
-    print("Все 10 ссылок успешно обработаны без ошибок punycode!")
+    # Сохраняем актуальное состояние кликов
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(current_state, f, ensure_ascii=False, indent=2)
+
+    print("Синхронизация завершена успешно!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
