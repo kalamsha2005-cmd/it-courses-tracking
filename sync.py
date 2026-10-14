@@ -11,8 +11,8 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 1. Четкие читаемые названия для курсов
-COURSE_MAP = {
+# 6 курсов на чистом русском/английском
+COURSES = {
     "hub-pe": "Prompt Engineering",
     "hub-nlc": "No-code / Low-code School",
     "hub-ss": "Startup School",
@@ -21,8 +21,7 @@ COURSE_MAP = {
     "hub-fs": "Freelance School"
 }
 
-def decode_key(raw_key):
-    """Декодирует xn-- в нормальные русские буквы"""
+def clean_key(raw_key):
     try:
         if raw_key.startswith("xn--"):
             return idna.decode(raw_key).lower()
@@ -31,66 +30,66 @@ def decode_key(raw_key):
         return raw_key.lower()
 
 try:
-    print("Запрос ссылок из Dub.co...")
-    dub_resp = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
-    if dub_resp.status_code != 200:
-        print(f"Ошибка Dub.co: {dub_resp.status_code}")
+    res = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
+    if res.status_code != 200:
+        print(f"Ошибка Dub.co: {res.status_code}")
         exit()
 
-    links_data = dub_resp.json()
-    ga4_endpoint = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
+    links = res.json()
+    ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
-    for item in links_data:
+    for item in links:
         raw_key = item.get("key", "").strip()
-        decoded_name = decode_key(raw_key)
-        target_url = item.get("url", "")
+        decoded = clean_key(raw_key)
+        target = item.get("url", "")
         clicks = item.get("clicks", 0)
 
-        # 1. Ссылки Decentrathon 6.0
-        if "децентр" in decoded_name or "decentrathon" in target_url:
+        # 1. ВЕТКА: Decentrathon 6.0
+        if "децентр" in decoded or "decentrathon" in target:
             event_name = "decentrathon_registration"
-            is_screen = ("экран" in decoded_name or "screen" in decoded_name)
-            channel = "Экраны хаба" if is_screen else "Презентация"
+            channel = "Экраны хаба" if ("экран" in decoded or "screen" in decoded) else "Презентация"
             params = {
-                "campaign_name": "Decentrathon 6.0",
-                "traffic_channel": channel,
-                "destination_url": target_url
+                "campaign": "Decentrathon 6.0",
+                "source": channel,
+                "medium": "QR-код",
+                "content": "Регистрация на хакатон"
             }
 
-        # 2. Ссылки на PDF-каталог (Google Диск)
-        elif "пдф" in decoded_name or "курсы" in decoded_name or "drive.google.com" in target_url:
+        # 2. ВЕТКА: Каталог курсов (сканирование QR-кода на PDF)
+        elif "пдф" in decoded or "курсы" in decoded or "drive.google.com" in target:
             event_name = "catalog_view"
-            is_screen = ("экран" in decoded_name or "screen" in decoded_name)
-            channel = "Экраны хаба" if is_screen else "Презентация"
+            channel = "Экраны хаба" if ("экран" in decoded or "screen" in decoded) else "Презентация"
             params = {
-                "campaign_name": "Каталог курсов (PDF)",
-                "traffic_channel": channel,
-                "destination_url": target_url
+                "campaign": "Каталог курсов",
+                "source": channel,
+                "medium": "QR-код",
+                "content": "Открытие PDF-каталога"
             }
 
-        # 3. Шесть курсов Astana Hub
+        # 3. ВЕТКА: Клики внутри PDF по конкретным курсам
         else:
             event_name = "course_click"
-            clean_title = COURSE_MAP.get(raw_key, raw_key)
+            course_title = COURSES.get(raw_key, raw_key)
             params = {
-                "course_title": clean_title,
-                "destination_url": target_url
+                "campaign": "Каталог курсов",
+                "source": "PDF-каталог",
+                "medium": "Кнопка в документе",
+                "item_name": course_title,
+                "content": course_title
             }
 
-        # Отправляем клики (если кликов 0, шлем 1 для отображения в GA4)
-        times_to_send = max(clicks, 1)
-
+        # Отправляем клики
         payload = {
-            "client_id": f"dub_{abs(hash(raw_key)) % 1000000}",
+            "client_id": f"user_{abs(hash(raw_key)) % 1000000}",
             "events": [{
                 "name": event_name,
                 "params": params
             }]
         }
-        requests.post(ga4_endpoint, json=payload, timeout=5)
-        print(f"Отправлено: {event_name} -> {decoded_name}")
+        requests.post(ga4_url, json=payload, timeout=5)
+        print(f"Синхронизировано: {params['campaign']} -> {params['source']} ({params.get('content')})")
 
-    print("Синхронизация завершена успешно.")
+    print("Все данные успешно разложены по структуре!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
