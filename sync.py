@@ -11,7 +11,7 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 1. Точные красивые названия курсов
+# 1. Четкие читаемые названия для курсов
 COURSE_MAP = {
     "hub-pe": "Prompt Engineering",
     "hub-nlc": "No-code / Low-code School",
@@ -22,7 +22,7 @@ COURSE_MAP = {
 }
 
 def decode_key(raw_key):
-    """Декодирует ключ даже если он в punycode (xn--)"""
+    """Декодирует xn-- в нормальные русские буквы"""
     try:
         if raw_key.startswith("xn--"):
             return idna.decode(raw_key).lower()
@@ -46,38 +46,38 @@ try:
         target_url = item.get("url", "")
         clicks = item.get("clicks", 0)
 
-        # 1. Проверяем: это Decentrathon?
+        # 1. Ссылки Decentrathon 6.0
         if "децентр" in decoded_name or "decentrathon" in target_url:
             event_name = "decentrathon_registration"
-            source = "screens" if ("экран" in decoded_name or "screen" in decoded_name) else "presentation"
+            is_screen = ("экран" in decoded_name or "screen" in decoded_name)
+            channel = "Экраны хаба" if is_screen else "Презентация"
             params = {
-                "source": source,
-                "campaign": "decentrathon_6.0",
+                "campaign_name": "Decentrathon 6.0",
+                "traffic_channel": channel,
                 "destination_url": target_url
             }
 
-        # 2. Проверяем: это каталог PDF на Google Диске?
+        # 2. Ссылки на PDF-каталог (Google Диск)
         elif "пдф" in decoded_name or "курсы" in decoded_name or "drive.google.com" in target_url:
             event_name = "catalog_view"
-            source = "screens" if ("экран" in decoded_name or "screen" in decoded_name) else "presentation"
+            is_screen = ("экран" in decoded_name or "screen" in decoded_name)
+            channel = "Экраны хаба" if is_screen else "Презентация"
             params = {
-                "source": source,
-                "campaign": "aktobe_catalog",
+                "campaign_name": "Каталог курсов (PDF)",
+                "traffic_channel": channel,
                 "destination_url": target_url
             }
 
-        # 3. Это один из 6 курсов Astana Hub
+        # 3. Шесть курсов Astana Hub
         else:
             event_name = "course_click"
-            # Подставляем строго красивое название курса
             clean_title = COURSE_MAP.get(raw_key, raw_key)
             params = {
                 "course_title": clean_title,
                 "destination_url": target_url
             }
 
-        # Отправляем клики
-        # Если реальных кликов 0, отправляем 1 событие для первоначальной калибровки отчётов
+        # Отправляем клики (если кликов 0, шлем 1 для отображения в GA4)
         times_to_send = max(clicks, 1)
 
         payload = {
@@ -88,9 +88,9 @@ try:
             }]
         }
         requests.post(ga4_endpoint, json=payload, timeout=5)
-        print(f"Отправлено: [{event_name}] {decoded_name} -> {params.get('course_title', params.get('source'))}")
+        print(f"Отправлено: {event_name} -> {decoded_name}")
 
-    print("Синхронизация успешно завершена!")
+    print("Синхронизация завершена успешно.")
 
 except Exception as e:
-    print(f"Произошла ошибка: {e}")
+    print(f"Ошибка: {e}")
