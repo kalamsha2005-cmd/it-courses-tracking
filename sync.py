@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import uuid
+import time
 
 DUB_API_KEY = "dub_YcT0ptmsLS3CJgZeL6ZL1iKN"
 GA4_MEASUREMENT_ID = "G-CMX1EDFBSM"
@@ -24,24 +25,21 @@ session = requests.Session()
 ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
 def send_to_ga4(event_name, item_name, count, target_url):
-    events = []
-    for _ in range(count):
-        events.append({
-            "name": event_name,
-            "params": {
-                "course_name": item_name,
-                "item_name": item_name,
-                "destination_url": target_url
-            }
-        })
-        if len(events) == 25:
-            session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
-            events = []
-
-    if events:
-        session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
-
-    print(f"[{event_name}] '{item_name}' -> отправлено кликов: {count}")
+    for i in range(count):
+        payload = {
+            "client_id": f"user_{uuid.uuid4().hex[:10]}",
+            "events": [{
+                "name": event_name,
+                "params": {
+                    "course_name": item_name,
+                    "item_name": item_name,
+                    "destination_url": target_url,
+                    "engagement_time_msec": 1000
+                }
+            }]
+        }
+        session.post(ga4_url, json=payload, timeout=5)
+    print(f"[{event_name}] '{item_name}' -> отправлено: {count}")
 
 try:
     print("Получение данных из Dub.co...")
@@ -51,19 +49,10 @@ try:
         exit(1)
 
     links = res.json()
-    print(f"Найдено ссылок: {len(links)}")
-
-    summary = {
-        "catalog_screens": 0,
-        "catalog_presentation": 0,
-        "decentrathon_screens": 0,
-        "decentrathon_presentation": 0,
-        "astanahub_courses": 0
-    }
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        target_url = item.get("url", "").strip().lower()
+        target_url = item.get("url", "").strip()
         clicks = max(item.get("clicks", 0), 1)
 
         # 1. ШЕСТЬ КУРСОВ ASTANA HUB
@@ -71,36 +60,32 @@ try:
             event_name = "astanahub_courses"
             item_name = COURSES_MAP[raw_key]
 
-        # 2. КАТАЛОГ PDF: ЭКРАНЫ (хеш iseh4b...)
+        # 2. КАТАЛОГ PDF: ЭКРАНЫ
         elif "iseh4b" in raw_key:
             event_name = "catalog_screens"
             item_name = "Каталог PDF (Экраны хаба)"
 
-        # 3. КАТАЛОГ PDF: ПРЕЗЕНТАЦИЯ (хеш vjfi9b...)
+        # 3. КАТАЛОГ PDF: ПРЕЗЕНТАЦИЯ
         elif "vjfi9b" in raw_key:
             event_name = "catalog_presentation"
             item_name = "Каталог PDF (Презентация)"
 
-        # 4. ДЕЦЕНТРАТОН: ЭКРАНЫ (хеш 5vebczt4...)
+        # 4. ДЕЦЕНТРАТОН: ЭКРАНЫ
         elif "5vebczt4" in raw_key:
             event_name = "decentrathon_screens"
             item_name = "Decentrathon (Экраны хаба)"
 
-        # 5. ДЕЦЕНТРАТОН: ПРЕЗЕНТАЦИЯ (хеш 5vebcztc...)
+        # 5. ДЕЦЕНТРАТОН: ПРЕЗЕНТАЦИЯ
         elif "5vebcztc" in raw_key:
             event_name = "decentrathon_presentation"
             item_name = "Decentrathon (Презентация)"
 
         else:
-            print(f"Неизвестная ссылка: {raw_key}")
             continue
 
-        send_to_ga4(event_name, item_name, clicks, item.get("url", ""))
-        summary[event_name] += clicks
+        send_to_ga4(event_name, item_name, clicks, target_url)
 
-    print("\nИТОГИ РАСПРЕДЕЛЕНИЯ ПО 5 ПАПКАМ:")
-    for k, v in summary.items():
-        print(f" -> {k}: {v} кликов")
+    print("\nСинхронизация завершена успешно!")
 
 except Exception as e:
-    print(f"Ошибка выполнения: {e}")
+    print(f"Ошибка: {e}")
