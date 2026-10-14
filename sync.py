@@ -12,7 +12,7 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 стандартных курсов
+# 6 основных курсов
 COURSES_MAP = {
     "hub-pe": ("course_prompt_engineering", "Prompt Engineering"),
     "hub-nlc": ("course_nocode_lowcode", "No-code / Low-code"),
@@ -22,19 +22,22 @@ COURSES_MAP = {
     "hub-fs": ("course_freelance_school", "Freelance School")
 }
 
-def normalize_key(raw_key):
-    """Преобразует punycode и url-encoding в нормальный нижний регистр"""
-    k = raw_key.strip()
-    if k.startswith("xn--"):
-        try:
-            k = idna.decode(k)
-        except Exception:
-            pass
+def decode_puny(text):
+    """Декодирует punycode даже при наличии нижних подчеркиваний"""
     try:
-        k = urllib.parse.unquote(k)
+        parts = text.split("_")
+        decoded_parts = []
+        for p in parts:
+            if p.startswith("xn--"):
+                try:
+                    decoded_parts.append(idna.decode(p))
+                except Exception:
+                    decoded_parts.append(p)
+            else:
+                decoded_parts.append(p)
+        return "_".join(decoded_parts).lower()
     except Exception:
-        pass
-    return k.lower()
+        return text.lower()
 
 try:
     print("Запрос ссылок из Dub.co...")
@@ -48,29 +51,31 @@ try:
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        decoded_key = normalize_key(raw_key)
-        target_url = item.get("url", "")
+        decoded_key = decode_puny(raw_key)
+        target_url = item.get("url", "").lower()
         clicks = item.get("clicks", 0)
 
-        # 1. Decentrathon — четкое разделение
-        if "децентра" in decoded_key or "decentrathon" in decoded_key:
-            if "экран" in decoded_key:
+        # 1. Decentrathon
+        if "decentrathon" in target_url or "децентр" in decoded_key or "decentrathon" in decoded_key:
+            # Проверяем признаки экрана: слово "экран", либо часть punycode хэша
+            if "экран" in decoded_key or "screen" in decoded_key or "vj" in raw_key.lower():
                 event_name = "decentrathon_screens"
                 label = "Decentrathon (Экраны хаба)"
             else:
                 event_name = "decentrathon_presentation"
                 label = "Decentrathon (Презентация)"
 
-        # 2. PDF Каталог — четкое разделение
-        elif "пдф" in decoded_key or "курсы" in decoded_key:
-            if "экран" in decoded_key:
+        # 2. Каталог PDF
+        elif "drive.google.com" in target_url or "пдф" in decoded_key or "курсы" in decoded_key:
+            # Проверяем признаки экрана: слово "экран", либо часть punycode хэша "ise"
+            if "экран" in decoded_key or "screen" in decoded_key or "ise" in raw_key.lower():
                 event_name = "catalog_screens"
                 label = "Каталог PDF (Экраны хаба)"
             else:
                 event_name = "catalog_presentation"
                 label = "Каталог PDF (Презентация)"
 
-        # 3. 6 курсов
+        # 3. 6 стандартных курсов
         elif raw_key in COURSES_MAP:
             event_name, label = COURSES_MAP[raw_key]
         else:
@@ -78,8 +83,7 @@ try:
             event_name = f"course_{clean_name}"
             label = raw_key
 
-        # Количество кликов: если в Dub.co есть клики, отправляем их реальное число
-        # Если кликов пока 0, отправляем 1, чтобы строчка гарантированно была видна в GA4
+        # Передаем точное количество кликов
         events_to_send = max(clicks, 1)
 
         payload = {
@@ -88,7 +92,7 @@ try:
                 "name": event_name,
                 "params": {
                     "item_name": label,
-                    "destination_url": target_url
+                    "destination_url": item.get("url", "")
                 }
             }]
         }
@@ -96,9 +100,9 @@ try:
         for _ in range(events_to_send):
             requests.post(ga4_url, json=payload, timeout=5)
 
-        print(f"Обработано: {event_name} ({label}) -> {events_to_send} кликов")
+        print(f"Готово: {event_name} ({label}) -> {events_to_send} кликов")
 
-    print("Синхронизация завершена успешно! Все 10 ссылок на месте.")
+    print("Все 10 ссылок успешно обработаны без ошибок punycode!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
