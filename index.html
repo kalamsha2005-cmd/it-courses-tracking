@@ -3,109 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Astana Hub Aktobe — Перенаправление...</title>
+  <title>Astana Hub Aktobe</title>
 
-  <!-- Google tag (gtag.js) GA4 -->
+  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-T4QCCV5D0Z"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
+    gtag('config', 'G-T4QCCV5D0Z');
 
-    gtag('config', 'G-T4QCCV5D0Z', {
-      send_page_view: true
-    });
-
-    // Полная карта реальных ссылок из твоего Dub.co
-    const routeMap = {
-      // Курсы платформы Astana Hub
-      fs: "https://edu.astanahub.com/courses/3dcbfff1-1a89-4c9b-a2c3-c58c0425ac6d",
-      bc: "https://edu.astanahub.com/courses/c9d1629b-f2c2-40b8-9097-c92623ced30d",
-      sa: "https://edu.astanahub.com/courses/cc946059-304e-450a-895b-e671db651cba",
-      ss: "https://edu.astanahub.com/courses/f2159fbf-0ecf-43cb-9376-b7efc6fc7df5",
-      nlc: "https://edu.astanahub.com/courses/8d83f744-1846-43ea-bc2a-1b8a37084a2e",
-      pe: "https://edu.astanahub.com/courses/74b6914d-7e3b-4f52-b0ae-8f989e2294a7",
-
-      // Decentrathon 6.0
-      dec: "https://decentrathon.ai/"
+    // База данных всех 10 ссылок с их UTM-метками
+    const routeCatalog = {
+      // 1. Каталог курсов (экраны)
+      'screens': {
+        url: 'https://drive.google.com/file/d/1MFNJxYyPoH1EVEo3cQIbQ0bdLT8ZImZU/view?usp=sharing&utm_source=offline_presentation&utm_medium=qr_code&utm_campaign=aktobe_catalog',
+        event: 'catalog_view',
+        source: 'screens',
+        campaign: 'aktobe_catalog',
+        title: 'Каталог IT-курсов (Экраны)'
+      },
+      // 2. Каталог курсов (презентация)
+      'presentation': {
+        url: 'https://drive.google.com/file/d/1MFNJxYyPoH1EVEo3cQIbQ0bdLT8ZImZU/view?usp=sharing&utm_source=offline_presentation&utm_medium=qr_code&utm_campaign=aktobe_catalog',
+        event: 'catalog_view',
+        source: 'presentation',
+        campaign: 'aktobe_catalog',
+        title: 'Каталог IT-курсов (Презентация)'
+      },
+      // 3. Decentrathon 6.0 (экраны)
+      'dec_screens': {
+        url: 'https://decentrathon.ai/?utm_source=hub_screens&utm_medium=qr&utm_campaign=decentrathon+6.0&utm_content=aktobe',
+        event: 'decentrathon_registration',
+        source: 'hub_screens',
+        campaign: 'decentrathon_6.0',
+        title: 'Decentrathon 6.0 (Экраны)'
+      },
+      // 4. Decentrathon 6.0 (презентация)
+      'dec_presentation': {
+        url: 'https://decentrathon.ai/?utm_source=hub_screens&utm_medium=qr&utm_campaign=decentrathon+6.0&utm_content=aktobe',
+        event: 'decentrathon_registration',
+        source: 'presentation',
+        campaign: 'decentrathon_6.0',
+        title: 'Decentrathon 6.0 (Презентация)'
+      },
+      // 5. Prompt Engineering
+      'pe': {
+        url: 'https://edu.astanahub.com/courses/74b6914d-7e3b-4f52-b0ae-8f989e2294a7?utm_source=presentation_pdf&utm_medium=button&utm_campaign=prompt-engineering',
+        event: 'course_click',
+        course_name: 'Prompt Engineering',
+        campaign: 'prompt-engineering',
+        title: 'Prompt Engineering'
+      },
+      // 6. No-code / Low-code School
+      'nlc': {
+        url: 'https://edu.astanahub.com/courses/8d83f744-1846-43ea-bc2a-1b8a37084a2e?utm_source=presentation_pdf&utm_medium=button&utm_campaign=nocode-school',
+        event: 'course_click',
+        course_name: 'No-code School',
+        campaign: 'nocode-school',
+        title: 'No-code / Low-code School'
+      },
+      // 7. Startup School
+      'ss': {
+        url: 'https://edu.astanahub.com/courses/f2159fbf-0ecf-43cb-9376-b7efc6fc7df5?utm_source=presentation_pdf&utm_medium=button&utm_campaign=startup-school',
+        event: 'course_click',
+        course_name: 'Startup School',
+        campaign: 'startup-school',
+        title: 'Startup School'
+      },
+      // 8. Startup Academy
+      'sa': {
+        url: 'https://edu.astanahub.com/courses/cc946059-304e-450a-895b-e671db651cba?utm_source=presentation_pdf&utm_medium=button&utm_campaign=startup-academy',
+        event: 'course_click',
+        course_name: 'Startup Academy',
+        campaign: 'startup-academy',
+        title: 'Startup Academy'
+      },
+      // 9. Beta Career
+      'bc': {
+        url: 'https://edu.astanahub.com/courses/c9d1629b-f2c2-40b8-9097-c92623ced30d?utm_source=presentation_pdf&utm_medium=button&utm_campaign=beta-career',
+        event: 'course_click',
+        course_name: 'Beta Career',
+        campaign: 'beta-career',
+        title: 'Beta Career'
+      },
+      // 10. Freelance School
+      'fs': {
+        url: 'https://edu.astanahub.com/courses/3dcbfff1-1a89-4c9b-a2c3-c58c0425ac6d?utm_source=presentation_pdf&utm_medium=button&utm_campaign=freelance-school',
+        event: 'course_click',
+        course_name: 'Freelance School',
+        campaign: 'freelance-school',
+        title: 'Freelance School'
+      }
     };
 
-    function startRedirect() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const target = urlParams.get('target');
-      const utmSource = urlParams.get('utm_source') || 'direct';
-      const utmMedium = urlParams.get('utm_medium') || 'qr_code';
-      const utmCampaign = urlParams.get('utm_campaign') || 'none';
+    // Определение нужной ссылки по параметру в адресной строке
+    const params = new URLSearchParams(window.location.search);
+    const routeKey = (params.get('route') || params.get('target') || 'screens').toLowerCase();
+    const item = routeCatalog[routeKey] || routeCatalog['screens'];
 
-      // 1. По умолчанию открываем твой рабочий PDF-каталог на Google Диске
-      let destinationUrl = "https://drive.google.com/file/d/1MFNJxYyPoH1EVEo3cQIbQ0bdLT8ZImZU/view?usp=sharing";
-      let eventName = "qr_catalog_scan";
-      let eventPayload = {
-        scan_source: utmSource,
-        medium: utmMedium,
-        campaign: utmCampaign,
-        transport_type: 'beacon'
-      };
+    // Отправка события в Google Analytics 4
+    gtag('event', item.event, {
+      'event_category': 'conversion',
+      'course_title': item.course_name || item.title,
+      'campaign': item.campaign,
+      'source': item.source || 'presentation_pdf'
+    });
 
-      // 2. Если кликнули по конкретному курсу или Decentrathon
-      if (target && routeMap[target]) {
-        destinationUrl = routeMap[target];
-        eventName = (target === 'dec') ? "decentrathon_click" : "course_selected";
-        eventPayload = {
-          item_id: target,
-          click_source: utmSource,
-          medium: utmMedium,
-          campaign: utmCampaign,
-          transport_type: 'beacon'
-        };
-      }
-
-      // Пробрасываем UTM-метки дальше на итоговую страницу
-      const searchClone = new URLSearchParams(window.location.search);
-      searchClone.delete('target');
-      const extraParams = searchClone.toString();
-      if (extraParams) {
-        destinationUrl += (destinationUrl.includes('?') ? '&' : '?') + extraParams;
-      }
-
-      // Отправляем аналитику в GA4
-      gtag('event', eventName, eventPayload);
-
-      // Редирект через 450 мс
-      setTimeout(function() {
-        window.location.replace(destinationUrl);
-      }, 450);
-    }
-
-    window.addEventListener('DOMContentLoaded', startRedirect);
+    // Редирект на целевой ресурс с UTM-метками
+    setTimeout(function() {
+      window.location.replace(item.url);
+    }, 350);
   </script>
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex;
       flex-direction: column;
-      align-items: center;
       justify-content: center;
-      height: 85vh;
+      align-items: center;
+      min-height: 80vh;
       margin: 0;
-      color: #333;
-      text-align: center;
+      background-color: #f8fafc;
+      color: #334155;
     }
     .spinner {
-      width: 36px;
-      height: 36px;
-      border: 3px solid #eee;
-      border-top: 3px solid #0052cc;
+      width: 32px;
+      height: 32px;
+      border: 3px solid #cbd5e1;
+      border-top-color: #0284c7;
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-bottom: 16px;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
     }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <div class="spinner"></div>
-  <p style="font-size:15px; margin:0;">Загрузка Astana Hub...</p>
+  <p>Загрузка Astana Hub...</p>
 </body>
 </html>
-
