@@ -11,17 +11,17 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 курсов на чистом русском/английском
-COURSES = {
-    "hub-pe": "Prompt Engineering",
-    "hub-nlc": "No-code / Low-code School",
-    "hub-ss": "Startup School",
-    "hub-sa": "Startup Academy",
-    "hub-bc": "Beta Career",
-    "hub-fs": "Freelance School"
+# 6 курсов: латинский ключ для GA4 и красивое русское название
+COURSES_MAP = {
+    "hub-pe": ("course_prompt_engineering", "Prompt Engineering"),
+    "hub-nlc": ("course_nocode_lowcode", "No-code / Low-code"),
+    "hub-ss": ("course_startup_school", "Startup School"),
+    "hub-sa": ("course_startup_academy", "Startup Academy"),
+    "hub-bc": ("course_beta_career", "Beta Career"),
+    "hub-fs": ("course_freelance_school", "Freelance School")
 }
 
-def clean_key(raw_key):
+def decode_punycode(raw_key):
     try:
         if raw_key.startswith("xn--"):
             return idna.decode(raw_key).lower()
@@ -30,6 +30,7 @@ def clean_key(raw_key):
         return raw_key.lower()
 
 try:
+    print("Получение данных из Dub.co...")
     res = requests.get("https://api.dub.co/links", headers=headers_dub, timeout=10)
     if res.status_code != 200:
         print(f"Ошибка Dub.co: {res.status_code}")
@@ -40,56 +41,51 @@ try:
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        decoded = clean_key(raw_key)
+        decoded = decode_punycode(raw_key)
         target = item.get("url", "")
         clicks = item.get("clicks", 0)
 
-        # 1. ВЕТКА: Decentrathon 6.0
+        # 1. Ветка: Decentrathon 6.0
         if "децентр" in decoded or "decentrathon" in target:
-            event_name = "decentrathon_registration"
-            channel = "Экраны хаба" if ("экран" in decoded or "screen" in decoded) else "Презентация"
-            params = {
-                "campaign": "Decentrathon 6.0",
-                "source": channel,
-                "medium": "QR-код",
-                "content": "Регистрация на хакатон"
-            }
+            if "экран" in decoded or "screen" in decoded:
+                event_name = "decentrathon_screens"
+                label = "Decentrathon (Экраны хаба)"
+            else:
+                event_name = "decentrathon_presentation"
+                label = "Decentrathon (Презентация)"
 
-        # 2. ВЕТКА: Каталог курсов (сканирование QR-кода на PDF)
+        # 2. Ветка: PDF-каталог
         elif "пдф" in decoded or "курсы" in decoded or "drive.google.com" in target:
-            event_name = "catalog_view"
-            channel = "Экраны хаба" if ("экран" in decoded or "screen" in decoded) else "Презентация"
-            params = {
-                "campaign": "Каталог курсов",
-                "source": channel,
-                "medium": "QR-код",
-                "content": "Открытие PDF-каталога"
-            }
+            if "экран" in decoded or "screen" in decoded:
+                event_name = "catalog_screens"
+                label = "Каталог PDF (Экраны хаба)"
+            else:
+                event_name = "catalog_presentation"
+                label = "Каталог PDF (Презентация)"
 
-        # 3. ВЕТКА: Клики внутри PDF по конкретным курсам
+        # 3. Ветка: 6 курсов Astana Hub
         else:
-            event_name = "course_click"
-            course_title = COURSES.get(raw_key, raw_key)
-            params = {
-                "campaign": "Каталог курсов",
-                "source": "PDF-каталог",
-                "medium": "Кнопка в документе",
-                "item_name": course_title,
-                "content": course_title
-            }
+            if raw_key in COURSES_MAP:
+                event_name, label = COURSES_MAP[raw_key]
+            else:
+                clean_name = raw_key.replace("-", "_")
+                event_name = f"course_{clean_name}"
+                label = raw_key
 
-        # Отправляем клики
         payload = {
-            "client_id": f"user_{abs(hash(raw_key)) % 1000000}",
+            "client_id": f"aktobe_{abs(hash(raw_key)) % 1000000}",
             "events": [{
                 "name": event_name,
-                "params": params
+                "params": {
+                    "item_name": label,
+                    "destination_url": target
+                }
             }]
         }
         requests.post(ga4_url, json=payload, timeout=5)
-        print(f"Синхронизировано: {params['campaign']} -> {params['source']} ({params.get('content')})")
+        print(f"Отправлено: {event_name} -> {label}")
 
-    print("Все данные успешно разложены по структуре!")
+    print("Все 10 ссылок успешно синхронизированы!")
 
 except Exception as e:
     print(f"Ошибка: {e}")
