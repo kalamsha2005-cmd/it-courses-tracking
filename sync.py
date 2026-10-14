@@ -12,36 +12,29 @@ headers_dub = {
     "Authorization": f"Bearer {DUB_API_KEY}"
 }
 
-# 6 курсов Astana Hub -> пойдут строго внутрь astanahub_courses
-COURSES = {
-    "hub-pe": "Prompt Engineering",
-    "hub-nlc": "No-code / Low-code",
-    "hub-ss": "Startup School",
-    "hub-sa": "Startup Academy",
-    "hub-bc": "Beta Career",
-    "hub-fs": "Freelance School"
-}
-
-def decode_punycode(text):
+# Функция для декодирования Punycode (русских букв) в обычный текст
+def decode_dub_key(text):
+    if not text:
+        return ""
     try:
         parts = text.split("_")
-        res = []
+        decoded_parts = []
         for p in parts:
             if p.startswith("xn--"):
                 try:
-                    res.append(idna.decode(p))
+                    decoded_parts.append(idna.decode(p))
                 except Exception:
-                    res.append(p)
+                    decoded_parts.append(p)
             else:
-                res.append(p)
-        return "_".join(res).lower()
+                decoded_parts.append(p)
+        return "_".join(decoded_parts).lower()
     except Exception:
         return text.lower()
 
 session = requests.Session()
 ga4_url = f"https://www.google-analytics.com/mp/collect?measurement_id={GA4_MEASUREMENT_ID}&api_secret={GA4_API_SECRET}"
 
-def send_batch(event_name, item_name, count, url=""):
+def send_to_ga4(event_name, item_name, count, target_url):
     events = []
     for _ in range(count):
         events.append({
@@ -49,27 +42,29 @@ def send_batch(event_name, item_name, count, url=""):
             "params": {
                 "course_name": item_name,
                 "item_name": item_name,
-                "destination_url": url
+                "destination_url": target_url
             }
         })
         if len(events) == 25:
             session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
             events = []
+
     if events:
         session.post(ga4_url, json={"client_id": str(uuid.uuid4()), "events": events}, timeout=5)
-    print(f"[{event_name}] -> {item_name}: отправлено {count}")
+
+    print(f"[{event_name}] '{item_name}' -> отправлено кликов: {count}")
 
 try:
-    print("Получаем все ссылки из Dub.co...")
+    print("Получение данных из Dub.co...")
     res = session.get("https://api.dub.co/links?limit=50", headers=headers_dub, timeout=10)
     if res.status_code != 200:
-        print(f"Ошибка Dub.co: {res.status_code}")
+        print(f"Ошибка Dub.co API: {res.status_code}")
         exit(1)
 
     links = res.json()
-    print(f"Всего ссылок получено: {len(links)}")
+    print(f"Найдено ссылок: {len(links)}")
 
-    categories_count = {
+    summary = {
         "catalog_screens": 0,
         "catalog_presentation": 0,
         "decentrathon_screens": 0,
@@ -79,45 +74,75 @@ try:
 
     for item in links:
         raw_key = item.get("key", "").strip()
-        decoded_name = decode_punycode(raw_key)
-        target_url = item.get("url", "").lower()
+        decoded_key = decode_dub_key(raw_key)
+        target_url = item.get("url", "").strip()
         clicks = max(item.get("clicks", 0), 1)
 
-        # 1. ШЕСТЬ КУРСОВ (ЕДИНАЯ ПАПКА)
-        if raw_key in COURSES:
-            event_name = "astanahub_courses"
-            item_name = COURSES[raw_key]
-
-        # 2. ДЕЦЕНТРАТОН - ЭКРАНЫ
-        elif "децентр" in decoded_name and "экран" in decoded_name:
-            event_name = "decentrathon_screens"
-            item_name = "Decentrathon (Экраны хаба)"
-
-        # 3. ДЕЦЕНТРАТОН - ПРЕЗЕНТАЦИЯ
-        elif "децентр" in decoded_name and ("презентаци" in decoded_name or "пер" in decoded_name):
-            event_name = "decentrathon_presentation"
-            item_name = "Decentrathon (Презентация)"
-
-        # 4. КАТАЛОГ PDF - ЭКРАНЫ
-        elif ("лм" in decoded_name or "drive.google.com" in target_url) and "экран" in decoded_name:
+        # -------------------------------------------------------------
+        # 1) КАТАЛОГ PDF: ЭКРАНЫ
+        # -------------------------------------------------------------
+        if "лмс_курсы_кьар_на_пдф_экраны" in decoded_key or ("лмс" in decoded_key and "экран" in decoded_key):
             event_name = "catalog_screens"
             item_name = "Каталог PDF (Экраны хаба)"
 
-        # 5. КАТАЛОГ PDF - ПРЕЗЕНТАЦИЯ
-        elif ("лм" in decoded_name or "drive.google.com" in target_url) and ("презентаци" in decoded_name or "для" in decoded_name):
+        # -------------------------------------------------------------
+        # 2) КАТАЛОГ PDF: ДЛЯ ПРЕЗЕНТАЦИЙ
+        # -------------------------------------------------------------
+        elif "лмс_курсы_кьар_на_пдф_для_презентации" in decoded_key or ("лмс" in decoded_key and "презентаци" in decoded_key):
             event_name = "catalog_presentation"
             item_name = "Каталог PDF (Презентация)"
 
+        # -------------------------------------------------------------
+        # 3) ДЕЦЕНТРАТОН 6.0: ЭКРАНЫ
+        # -------------------------------------------------------------
+        elif "децентра_6.0_кьар_на_рег_экраны" in decoded_key or ("децентр" in decoded_key and "экран" in decoded_key):
+            event_name = "decentrathon_screens"
+            item_name = "Decentrathon (Экраны хаба)"
+
+        # -------------------------------------------------------------
+        # 4) ДЕЦЕНТРАТОН 6.0: ПРЕЗЕНТАЦИИ
+        # -------------------------------------------------------------
+        elif "децентра_6.0_кьар_на_рег_презентации" in decoded_key or ("децентр" in decoded_key and "презентаци" in decoded_key):
+            event_name = "decentrathon_presentation"
+            item_name = "Decentrathon (Презентация)"
+
+        # -------------------------------------------------------------
+        # 5–10) 6 КУРСОВ ASTANA HUB -> СТРОГО В ПАПКУ astanahub_courses
+        # -------------------------------------------------------------
+        elif raw_key == "hub-pe":
+            event_name = "astanahub_courses"
+            item_name = "Prompt Engineering"
+
+        elif raw_key == "hub-nlc":
+            event_name = "astanahub_courses"
+            item_name = "No-code / Low-code"
+
+        elif raw_key == "hub-ss":
+            event_name = "astanahub_courses"
+            item_name = "Startup School"
+
+        elif raw_key == "hub-sa":
+            event_name = "astanahub_courses"
+            item_name = "Startup Academy"
+
+        elif raw_key == "hub-bc":
+            event_name = "astanahub_courses"
+            item_name = "Beta Career"
+
+        elif raw_key == "hub-fs":
+            event_name = "astanahub_courses"
+            item_name = "Freelance School"
+
         else:
-            print(f"Пропуск нераспознанной: {raw_key} ({decoded_name})")
+            print(f"Неизвестная ссылка: {raw_key} ({decoded_key})")
             continue
 
-        send_batch(event_name, item_name, clicks, item.get("url", ""))
-        categories_count[event_name] += clicks
+        send_to_ga4(event_name, item_name, clicks, target_url)
+        summary[event_name] += clicks
 
-    print("\nИтог синхронизации по категориям:")
-    for cat, total in categories_count.items():
-        print(f" - {cat}: {total} кликов")
+    print("\nИТОГИ РАСПРЕДЕЛЕНИЯ ПО 5 ПАПКАМ:")
+    for k, v in summary.items():
+        print(f" -> {k}: {v} кликов")
 
 except Exception as e:
-    print(f"Ошибка: {e}")
+    print(f"Ошибка выполнения: {e}")
